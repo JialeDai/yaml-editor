@@ -1,0 +1,74 @@
+
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>YAML Comparison</title>
+        <style>
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            th, td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }
+            th {
+                background-color: #f2f2f2;
+            }
+            pre {
+                margin: 0;
+                font-family: inherit;
+                font-size: inherit;
+                white-space: pre-wrap; /* Wrap long lines */
+                word-wrap: break-word; /* Break long words */
+            }
+        </style>
+    </head>
+    <body>
+        <table>
+            <tr>
+                <th>Entry</th><th>override.atlantik.yaml</th><th>override.celtic.yaml</th></tr><tr><td>name</td><td><pre>FunctionAppaa
+</pre></td><td><pre>jidai
+</pre></td></tr><tr><td>summary</td><td><pre>Azure Function App Environment
+</pre></td><td><pre>Azure Function App Environment
+</pre></td></tr><tr><td>description</td><td><pre>Deploys an Azure Function App, Storage Account, and Application Insights
+</pre></td><td><pre>Deploys an Azure Function App, Storage Account, and Application Insights
+</pre></td></tr><tr><td>runner</td><td><pre>ARM
+</pre></td><td><pre>ARM
+</pre></td></tr><tr><td>templatePath</td><td><pre>azuredeploy.json
+</pre></td><td><pre>azuredeploy.json
+</pre></td></tr><tr><td>parameters</td><td><pre>- id: name
+  name: Name
+  description: Name of the Function App.
+  type: string
+  required: true
+- id: supportsHttpsTrafficOnly
+  name: Supports Https Traffic Only
+  description: Allows https traffic only to Storage Account and Functions App if set to true.
+  type: boolean
+- id: runtime
+  name: Runtime
+  description: The language worker runtime to load in the function app.
+  type: string
+  allowed:
+    - dotnet
+    - dotnet-isolated
+    - java
+    - node
+    - powershell
+    - python
+  default: dotnet-isolated
+</pre></td><td><pre>- id: name
+  name: Name
+  description: Name of the Function App.
+  type: string
+  required: true
+</pre></td></tr><tr><td>version</td><td><pre>N/A
+</pre></td><td><pre>1.0.0
+</pre></td></tr>
+        </table>
+    </body>
+    </html>

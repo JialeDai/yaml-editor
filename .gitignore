@@ -1,0 +1,53 @@
+# Node.js dependencies
+node_modules/
+
+# Electron build output
+dist/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# MacOS specific files
+.DS_Store
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Environment variable files
+.env
+
+# Compiled JavaScript files
+*.node
+
+# Ignore the Electron Packager output directory
+yaml-editor-darwin-x64/
+
+# Other system files
+.PS
+
+# Coverage directory used by testing tools
+coverage/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+

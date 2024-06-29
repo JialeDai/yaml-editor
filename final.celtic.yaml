@@ -1,0 +1,18 @@
+test: valueTest
+name: jidai
+version: 1.0.0
+summary: Azure Function App Environment
+description: Deploys an Azure Function App, Storage Account, and Application Insights
+runner: ARM
+templatePath: azuredeploy.json
+parameters:
+  - id: name
+    name: Name
+    description: Name of the Function App.
+    type: string
+    required: true
+  - id: name
+    name: Name
+    description: Name of the Function App.
+    type: string
+    required: true

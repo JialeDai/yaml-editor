@@ -1,0 +1,17 @@
+{
+  "name": "yaml-editor",
+  "version": "1.0.0",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-packager . --platform=darwin --arch=x64 --out=dist --overwrite"
+  },
+  "devDependencies": {
+    "electron": "^31.1.0",
+    "electron-packager": "^17.1.1"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "pdf-lib": "^1.17.1"
+  }
+}
