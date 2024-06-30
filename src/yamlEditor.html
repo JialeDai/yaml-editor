@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YAML Editor</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        th.entry-column, th.file-name {
+            font-weight: bold;
+        }
+        textarea {
+            width: 100%;
+            height: 100%;
+            border: none;
+            resize: none;
+            overflow: hidden;
+            font-family: inherit;
+            font-size: inherit;
+            white-space: pre-wrap; /* Wrap long lines */
+            word-wrap: break-word; /* Break long words */
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="fileInput" multiple />
+    <button id="saveButton">Save Changes</button>
+    <button id="exportButton">Export to HTML</button>
+    <select id="environmentSelect">
+        <option value="" disabled selected>Select Environment</option>
+    </select>
+    <button id="generateButton">Generate Environment YAML</button>
+    <div id="tableContainer"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script>
+        let filesData = {}; // To store the contents of all the files
+        let filePaths = {}; // To store the original paths of the uploaded files
+
+        document.getElementById("fileInput").addEventListener("change", (event) => {
+            const files = event.target.files;
+            for (let file of files) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    const yamlContent = jsyaml.load(content);
+                    filesData[file.name] = yamlContent;
+                    filePaths[file.name] = file.webkitRelativePath || file.name; // Store the file path
+                    console.log(`Loaded content for ${file.name}:`, yamlContent); // Logging for debugging
+                    displayData();
+                    updateEnvironmentSelect();
+                    autoSelectAllEnvironment(); // Auto select "All Files" after updating the environment select
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        document.getElementById("generateButton").addEventListener("click", () => {
+            const environmentSelect = document.getElementById("environmentSelect");
+            const selectedEnvironment = environmentSelect.value;
+            if (selectedEnvironment && selectedEnvironment !== "all") {
+                generateYamlForEnvironment(selectedEnvironment);
+            } else {
+                alert("Please select a valid environment.");
+            }
+        });
+
+        function updateEnvironmentSelect() {
+            const environmentSelect = document.getElementById("environmentSelect");
+            const environments = Object.keys(filesData)
+                .filter(
+                    (fileName) =>
+                        fileName.startsWith("override.") && fileName.endsWith(".yaml")
+                )
+                .map((fileName) => fileName.replace("override.", "").replace(".yaml", ""));
+
+            environmentSelect.innerHTML =
+                '<option value="" disabled>Select Environment</option>';
+            if (Object.keys(filesData).length > 0) {
+                environmentSelect.innerHTML += '<option value="all">All Files</option>';
+            }
+            environments.forEach((env) => {
+                const option = document.createElement("option");
+                option.value = env;
+                option.textContent = env;
+                environmentSelect.appendChild(option);
+            });
+
+            environmentSelect.addEventListener("change", displaySelectedEnvironment);
+        }
+
+        function autoSelectAllEnvironment() {
+            const environmentSelect = document.getElementById("environmentSelect");
+            if (Object.keys(filesData).length > 0) {
+                environmentSelect.value = "all";
+                displayData(); // Display all files
+            }
+        }
+
+        function displaySelectedEnvironment() {
+            const environmentSelect = document.getElementById("environmentSelect");
+            const selectedEnvironment = environmentSelect.value;
+            if (selectedEnvironment) {
+                if (selectedEnvironment === "all") {
+                    displayData();
+                } else {
+                    displayDataForEnvironment(selectedEnvironment);
+                }
+            }
+        }
+
+        function generateYamlForEnvironment(environment) {
+            const baseFileName = "values.yaml";
+            const overrideFileName = `override.${environment}.yaml`;
+            const finalFileName = `final.${environment}.yaml`;
+            const downloadFolderPath = `${environment}`; // Use environment name as folder name
+            const finalFilePath = `${downloadFolderPath}/${finalFileName}`;
+
+            if (!(baseFileName in filesData) || !(overrideFileName in filesData)) {
+                alert(
+                    "Base file or override file not found. Please upload the necessary files."
+                );
+                return;
+            }
+
+            const baseContent = filesData[baseFileName];
+            const overrideContent = filesData[overrideFileName];
+
+            const finalContent = mergeDeep(baseContent, overrideContent);
+
+            const yamlContent = jsyaml.dump(finalContent, {
+                lineWidth: -1, // No line wrap
+                noCompatMode: true, // Avoid compatibility mode
+                styles: {
+                    "!!null": "canonical", // Use canonical style for null values
+                },
+            });
+
+            const blob = new Blob([yamlContent], { type: "text/yaml" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = finalFilePath;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            alert(`File generated successfully: ${finalFilePath}`);
+        }
+
+        function mergeDeep(target, source) {
+            const isObject = (obj) => obj && typeof obj === "object";
+
+            if (!isObject(target) || !isObject(source)) {
+                return source;
+            }
+
+            Object.keys(source).forEach((key) => {
+                const targetValue = target[key];
+                const sourceValue = source[key];
+
+                if (Array.isArray(targetValue) && Array.isArray(sourceValue)) {
+                    // Handle replacing arrays with same 'id' values
+                    const mergedArray = sourceValue.map((sourceItem) => {
+                        const targetIndex = targetValue.findIndex(
+                            (targetItem) => targetItem.id === sourceItem.id
+                        );
+                        if (targetIndex !== -1) {
+                            targetValue[targetIndex] = mergeDeep(
+                                targetValue[targetIndex],
+                                sourceItem
+                            );
+                        } else {
+                            targetValue.push(sourceItem);
+                        }
+                        return sourceItem;
+                    });
+                    target[key] = mergedArray;
+                } else if (isObject(targetValue) && isObject(sourceValue)) {
+                    target[key] = mergeDeep(Object.assign({}, targetValue), sourceValue);
+                } else {
+                    target[key] = sourceValue;
+                }
+            });
+
+            return target;
+        }
+
+        function displayData() {
+            const tableContainer = document.getElementById("tableContainer");
+            tableContainer.innerHTML = "";
+
+            if (Object.keys(filesData).length === 0) {
+                return;
+            }
+
+            // Create a table
+            const table = document.createElement("table");
+            const headerRow = document.createElement("tr");
+
+            // Create the first cell for the entry names
+            const firstCell = document.createElement("th");
+            firstCell.textContent = "Entry";
+            firstCell.classList.add("entry-column");
+            headerRow.appendChild(firstCell);
+
+            // Ensure values.yaml is the first column if it exists
+            const fileNames = Object.keys(filesData);
+            if (fileNames.includes("values.yaml")) {
+                fileNames.sort((a, b) => {
+                    if (a === "values.yaml") return -1;
+                    if (b === "values.yaml") return 1;
+                    return 0;
+                });
+            }
+
+            // Add a column for each file
+            for (let fileName of fileNames) {
+                const th = document.createElement("th");
+                th.textContent = fileName;
+                th.classList.add("file-name"); // Make file names bold
+                headerRow.appendChild(th);
+            }
+            table.appendChild(headerRow);
+
+            // Gather all unique entry names
+            const allEntries = new Set();
+            for (let fileName in filesData) {
+                Object.keys(filesData[fileName]).forEach((key) => allEntries.add(key));
+            }
+
+            // Create a row for each entry
+            allEntries.forEach((entry) => {
+                const row = document.createElement("tr");
+                const entryCell = document.createElement("td");
+                entryCell.textContent = entry;
+                row.appendChild(entryCell);
+
+                // Create a cell for each file's value for this entry
+                for (let fileName of fileNames) {
+                    const cell = document.createElement("td");
+                    const textArea = document.createElement("textarea");
+                    const cellContent = filesData[fileName][entry] || "N/A"; // Use 'N/A' for missing entries
+                    console.log(`Setting content for ${fileName} - ${entry}:`, cellContent); // Logging for debugging
+
+                    // Configure YAML dump options
+                    const yamlContent = jsyaml.dump(cellContent, {
+                        lineWidth: -1, // No line wrap
+                        noCompatMode: true, // Avoid compatibility mode
+                        styles: {
+                            "!!null": "canonical", // Use canonical style for null values
+                        },
+                    });
+                    textArea.value = yamlContent;
+                    textArea.style.overflow = "hidden";
+                    textArea.style.resize = "none";
+                    textArea.style.border = "none"; // Hide the border
+                    textArea.style.whiteSpace = "pre-wrap"; // Ensure content wraps
+
+                    // Append textArea to cell first
+                    cell.appendChild(textArea);
+                    row.appendChild(cell);
+
+                    // Adjust the height and width after appending to the DOM
+                    adjustTextAreaSize(textArea);
+
+                    textArea.addEventListener("input", (e) => {
+                        adjustTextAreaSize(textArea);
+                        const updatedValue = jsyaml.load(e.target.value);
+                        filesData[fileName][entry] =
+                            updatedValue === "N/A" ? null : updatedValue; // Handle 'N/A' as null
+                        console.log(`Updated ${fileName} - ${entry}:`, updatedValue); // Logging for debugging
+                    });
+                }
+
+                table.appendChild(row);
+            });
+
+            tableContainer.appendChild(table);
+
+            // Ensure all text areas are adjusted after the DOM update
+            requestAnimationFrame(() => {
+                const textAreas = document.querySelectorAll("textarea");
+                textAreas.forEach(adjustTextAreaSize);
+            });
+        }
+
+        function displayDataForEnvironment(environment) {
+            const tableContainer = document.getElementById("tableContainer");
+            tableContainer.innerHTML = "";
+
+            if (Object.keys(filesData).length === 0) {
+                return;
+            }
+
+            // Create a table
+            const table = document.createElement("table");
+            const headerRow = document.createElement("tr");
+
+            // Create the first cell for the entry names
+            const firstCell = document.createElement("th");
+            firstCell.textContent = "Entry";
+            firstCell.classList.add("entry-column");
+            headerRow.appendChild(firstCell);
+
+            // Ensure values.yaml is the first column if it exists
+            const fileNames = ["values.yaml", `override.${environment}.yaml`];
+
+            // Add a column for each file
+            for (let fileName of fileNames) {
+                if (!filesData[fileName]) continue;
+                const th = document.createElement("th");
+                th.textContent = fileName;
+                th.classList.add("file-name"); // Make file names bold
+                headerRow.appendChild(th);
+            }
+            table.appendChild(headerRow);
+
+            // Gather all unique entry names
+            const allEntries = new Set();
+            for (let fileName of fileNames) {
+                if (!filesData[fileName]) continue;
+                Object.keys(filesData[fileName]).forEach((key) => allEntries.add(key));
+            }
+
+            // Create a row for each entry
+            allEntries.forEach((entry) => {
+                const row = document.createElement("tr");
+                const entryCell = document.createElement("td");
+                entryCell.textContent = entry;
+                row.appendChild(entryCell);
+
+                // Create a cell for each file's value for this entry
+                for (let fileName of fileNames) {
+                    if (!filesData[fileName]) continue;
+                    const cell = document.createElement("td");
+                    const textArea = document.createElement("textarea");
+                    const cellContent = filesData[fileName][entry] || "N/A"; // Use 'N/A' for missing entries
+                    console.log(`Setting content for ${fileName} - ${entry}:`, cellContent); // Logging for debugging
+
+                    // Configure YAML dump options
+                    const yamlContent = jsyaml.dump(cellContent, {
+                        lineWidth: -1, // No line wrap
+                        noCompatMode: true, // Avoid compatibility mode
+                        styles: {
+                            "!!null": "canonical", // Use canonical style for null values
+                        },
+                    });
+                    textArea.value = yamlContent;
+                    textArea.style.overflow = "hidden";
+                    textArea.style.resize = "none";
+                    textArea.style.border = "none"; // Hide the border
+                    textArea.style.whiteSpace = "pre-wrap"; // Ensure content wraps
+
+                    // Append textArea to cell first
+                    cell.appendChild(textArea);
+                    row.appendChild(cell);
+
+                    // Adjust the height and width after appending to the DOM
+                    adjustTextAreaSize(textArea);
+
+                    textArea.addEventListener("input", (e) => {
+                        adjustTextAreaSize(textArea);
+                        const updatedValue = jsyaml.load(e.target.value);
+                        filesData[fileName][entry] =
+                            updatedValue === "N/A" ? null : updatedValue; // Handle 'N/A' as null
+                        console.log(`Updated ${fileName} - ${entry}:`, updatedValue); // Logging for debugging
+                    });
+                }
+
+                table.appendChild(row);
+            });
+
+            tableContainer.appendChild(table);
+
+            // Ensure all text areas are adjusted after the DOM update
+            requestAnimationFrame(() => {
+                const textAreas = document.querySelectorAll("textarea");
+                textAreas.forEach(adjustTextAreaSize);
+            });
+        }
+
+        function adjustTextAreaSize(textArea) {
+            textArea.style.height = "auto";
+            textArea.style.width = "auto";
+
+            const lines = textArea.value.split("\n");
+            const maxWidth = Math.max(
+                ...lines.map((line) => getTextWidth(line, textArea))
+            );
+
+            textArea.style.height = textArea.scrollHeight + "px";
+            textArea.style.width = maxWidth + "px";
+        }
+
+        function getTextWidth(text, textArea) {
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d");
+            context.font = getComputedStyle(textArea).font;
+            return context.measureText(text).width;
+        }
+
+        document.getElementById("saveButton").addEventListener("click", () => {
+            const environmentSelect = document.getElementById("environmentSelect");
+            const selectedEnvironment = environmentSelect.value;
+            if (selectedEnvironment && selectedEnvironment !== "all") {
+                saveChangesForEnvironment(selectedEnvironment);
+            } else {
+                saveAllChanges();
+            }
+        });
+
+        function saveChangesForEnvironment(environment) {
+            const baseFileName = "values.yaml";
+            const overrideFileName = `override.${environment}.yaml`;
+            const fileNames = [baseFileName, overrideFileName];
+
+            fileNames.forEach((fileName) => {
+                const filePath = filePaths[fileName]; // Get the original file path
+                const yamlContent = jsyaml.dump(filesData[fileName], {
+                    lineWidth: -1, // No line wrap
+                    noCompatMode: true, // Avoid compatibility mode
+                    styles: {
+                        "!!null": "canonical", // Use canonical style for null values
+                    },
+                });
+                console.log(`Saving content for ${fileName} to ${filePath}:`, yamlContent); // Logging for debugging
+                const blob = new Blob([yamlContent], { type: "text/yaml" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+            alert("All changes saved successfully.");
+        }
+
+        function saveAllChanges() {
+            for (let fileName in filesData) {
+                const filePath = filePaths[fileName]; // Get the original file path
+                const yamlContent = jsyaml.dump(filesData[fileName], {
+                    lineWidth: -1, // No line wrap
+                    noCompatMode: true, // Avoid compatibility mode
+                    styles: {
+                        "!!null": "canonical", // Use canonical style for null values
+                    },
+                });
+                console.log(`Saving content for ${fileName} to ${filePath}:`, yamlContent); // Logging for debugging
+                const blob = new Blob([yamlContent], { type: "text/yaml" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+            alert("All changes saved successfully.");
+        }
+
+        document.getElementById("exportButton").addEventListener("click", () => {
+            let htmlContent = `
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>YAML Comparison</title>
+                    <style>
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                        }
+                        th, td {
+                            border: 1px solid #ddd;
+                            padding: 8px;
+                            text-align: left;
+                        }
+                        th {
+                            background-color: #f2f2f2;
+                        }
+                        pre {
+                            margin: 0;
+                            font-family: inherit;
+                            font-size: inherit;
+                            white-space: pre-wrap; /* Wrap long lines */
+                            word-wrap: break-word; /* Break long words */
+                        }
+                    </style>
+                </head>
+                <body>
+                    <table>
+                        <tr>
+                            <th>Entry</th>`;
+
+            // Add table headers
+            for (let fileName in filesData) {
+                htmlContent += `<th>${fileName}</th>`;
+            }
+
+            htmlContent += `</tr>`;
+
+            // Gather all unique entry names
+            const allEntries = new Set();
+            for (let fileName in filesData) {
+                Object.keys(filesData[fileName]).forEach((key) => allEntries.add(key));
+            }
+
+            // Create a row for each entry
+            allEntries.forEach((entry) => {
+                htmlContent += `<tr><td>${entry}</td>`;
+                for (let fileName in filesData) {
+                    const cellContent = filesData[fileName][entry] || "N/A"; // Use 'N/A' for missing entries
+                    const yamlContent = jsyaml.dump(cellContent, {
+                        lineWidth: -1,
+                        noCompatMode: true,
+                        styles: {
+                            "!!null": "canonical",
+                        },
+                    });
+                    htmlContent += `<td><pre>${yamlContent}</pre></td>`;
+                }
+                htmlContent += `</tr>`;
+            });
+
+            htmlContent += `
+                    </table>
+                </body>
+                </html>`;
+
+            const blob = new Blob([htmlContent], { type: "text/html" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "comparison.html";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            alert("Comparison exported to comparison.html");
+        });
+
+        function openFile(filePath) {
+            alert("Cannot open file in standalone HTML. Use a local environment to access this feature.");
+        }
+    </script>
+</body>
+</html>
