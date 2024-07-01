@@ -30,6 +30,7 @@
             font-size: inherit;
             white-space: pre-wrap; /* Wrap long lines */
             word-wrap: break-word; /* Break long words */
+            overflow-wrap: break-word; /* Ensure long words break */
         }
     </style>
 </head>
@@ -226,6 +227,7 @@
             }
 
             // Add a column for each file
+            const maxColumnWidth = Math.min(window.innerWidth / fileNames.length, 200);
             for (let fileName of fileNames) {
                 const th = document.createElement("th");
                 th.textContent = fileName;
@@ -240,11 +242,24 @@
                 Object.keys(filesData[fileName]).forEach((key) => allEntries.add(key));
             }
 
+            let maxEntryWidth = 0;
+            allEntries.forEach((entry) => {
+                const entryWidth = getTextWidth(entry, document.createElement("textarea"));
+                if (entryWidth > maxEntryWidth) {
+                    maxEntryWidth = entryWidth;
+                }
+            });
+
+            if (maxEntryWidth > maxColumnWidth) {
+                maxEntryWidth = maxColumnWidth;
+            }
+
             // Create a row for each entry
             allEntries.forEach((entry) => {
                 const row = document.createElement("tr");
                 const entryCell = document.createElement("td");
                 entryCell.textContent = entry;
+                entryCell.style.maxWidth = `${maxEntryWidth}px`;
                 row.appendChild(entryCell);
 
                 // Create a cell for each file's value for this entry
@@ -318,6 +333,7 @@
             const fileNames = ["values.yaml", `overrides.${environment}.yaml`];
 
             // Add a column for each file
+            const maxColumnWidth = Math.min(window.innerWidth / fileNames.length, 200);
             for (let fileName of fileNames) {
                 if (!filesData[fileName]) continue;
                 const th = document.createElement("th");
@@ -334,11 +350,24 @@
                 Object.keys(filesData[fileName]).forEach((key) => allEntries.add(key));
             }
 
+            let maxEntryWidth = 0;
+            allEntries.forEach((entry) => {
+                const entryWidth = getTextWidth(entry, document.createElement("textarea"));
+                if (entryWidth > maxEntryWidth) {
+                    maxEntryWidth = entryWidth;
+                }
+            });
+
+            if (maxEntryWidth > maxColumnWidth) {
+                maxEntryWidth = maxColumnWidth;
+            }
+
             // Create a row for each entry
             allEntries.forEach((entry) => {
                 const row = document.createElement("tr");
                 const entryCell = document.createElement("td");
                 entryCell.textContent = entry;
+                entryCell.style.maxWidth = `${maxEntryWidth}px`;
                 row.appendChild(entryCell);
 
                 // Create a cell for each file's value for this entry
@@ -393,7 +422,7 @@
 
         function adjustTextAreaSize(textArea) {
             textArea.style.height = "auto";
-            textArea.style.width = "auto";
+            textArea.style.width = "100%"; // Make textarea width 100% of cell
 
             const lines = textArea.value.split("\n");
             const maxWidth = Math.max(
@@ -401,7 +430,6 @@
             );
 
             textArea.style.height = textArea.scrollHeight + "px";
-            textArea.style.width = maxWidth + "px";
         }
 
         function getTextWidth(text, textArea) {
@@ -508,7 +536,7 @@
                         <tr>
                             <th>Entry</th>`;
 
-            // Ensure values.yaml is the first column if it exists
+            // Add table headers
             const fileNames = Object.keys(filesData);
             if (fileNames.includes("values.yaml")) {
                 fileNames.sort((a, b) => {
@@ -518,7 +546,6 @@
                 });
             }
 
-            // Add table headers
             for (let fileName of fileNames) {
                 htmlContent += `<th>${fileName}</th>`;
             }
